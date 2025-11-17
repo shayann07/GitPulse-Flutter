@@ -120,3 +120,5 @@ flutter:
     - assets/pause_icon.svg
     - assets/partial_icon.svg
     - assets/failed_icon.svg
+    - assets/search_icon.svg
+    - assets/checkbox_icon.svg

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:gitpulse/repositories_screen.dart';
 import 'package:gitpulse/run_screen.dart';
+
+import 'history_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -15,7 +18,7 @@ class HomeScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               _Header(),
               SizedBox(height: 26),
               _MainRunCard(),
@@ -24,17 +27,40 @@ class HomeScreen extends StatelessWidget {
               SizedBox(height: 24),
               _SectionTitle('Quick Action'),
               SizedBox(height: 12),
-              _QuickActionTile(
-                iconAsset: 'assets/repo_icon.svg',
-                title: 'Manage repositories',
-                subtitle: 'Select & configure repositories',
+              // ========= MANAGE REPOSITORIES =========
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const RepositoriesScreen(),
+                    ),
+                  );
+                },
+                child: const _QuickActionTile(
+                  iconAsset: 'assets/repo_icon.svg',
+                  title: 'Manage repositories',
+                  subtitle: 'Select & configure repositories',
+                ),
               ),
+
               SizedBox(height: 10),
-              _QuickActionTile(
-                iconAsset: 'assets/history_icon.svg',
-                title: 'View History',
-                subtitle: 'Past runs & logs',
+
+              // ========= VIEW HISTORY =========
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                  );
+                },
+                child: const _QuickActionTile(
+                  iconAsset: 'assets/history_icon.svg',
+                  title: 'View History',
+                  subtitle: 'Past runs & logs',
+                ),
               ),
+
               SizedBox(height: 26),
               _SectionTitle('Recent Activities'),
               SizedBox(height: 14),
@@ -131,6 +157,8 @@ class _Header extends StatelessWidget {
 
 // ===================== MAIN RUN CARD =====================
 
+// ===================== MAIN RUN CARD =====================
+
 class _MainRunCard extends StatelessWidget {
   const _MainRunCard();
 
@@ -183,27 +211,24 @@ class _MainRunCard extends StatelessWidget {
           const SizedBox(height: 32),
 
           // Play button
-          // Play button
-          Container(
-            margin: const EdgeInsets.all(10),
-            child: Center(
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RunScreen()),
-                  );
-                },
-                child: SvgPicture.asset(
-                  'assets/ic_play.svg',
-                  width: 120,
-                  height: 120,
-                ),
+          Center(
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RunScreen()),
+                );
+              },
+              child: SvgPicture.asset(
+                'assets/ic_play.svg',
+                width: 120,
+                height: 120,
               ),
             ),
           ),
 
           const SizedBox(height: 24),
+
           const Text(
             'Ready to Execute',
             style: TextStyle(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'history_screen.dart';
+
 class RunScreen extends StatelessWidget {
   const RunScreen({super.key});
 
@@ -28,10 +30,7 @@ class RunScreen extends StatelessWidget {
                 subtitle: 'Committed 3 files',
               ),
               SizedBox(height: 12),
-              _RepoSuccessCard(
-                name: 'Dot Files',
-                subtitle: 'Committed 2 file',
-              ),
+              _RepoSuccessCard(name: 'Dot Files', subtitle: 'Committed 2 file'),
 
               SizedBox(height: 16),
 
@@ -94,15 +93,16 @@ class _TopControls extends StatelessWidget {
   }
 }
 
-
 class _ControlButton extends StatelessWidget {
   final String icon;
+
   const _ControlButton({required this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 38,          // smaller, closer to PNG
+      width: 38,
+      // smaller, closer to PNG
       height: 38,
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1E),
@@ -111,7 +111,7 @@ class _ControlButton extends StatelessWidget {
       alignment: Alignment.center,
       child: SvgPicture.asset(
         icon,
-        width: 16,        // smaller icon
+        width: 16, // smaller icon
         height: 16,
       ),
     );
@@ -148,10 +148,7 @@ class _ProgressCard extends StatelessWidget {
           SizedBox(height: 4),
           Text(
             'Running',
-            style: TextStyle(
-              color: Color(0xFFC4C4CE),
-              fontSize: 15,
-            ),
+            style: TextStyle(color: Color(0xFFC4C4CE), fontSize: 15),
           ),
           SizedBox(height: 22),
           _MainGradientProgressBar(percent: 0.60),
@@ -163,6 +160,7 @@ class _ProgressCard extends StatelessWidget {
 
 class _MainGradientProgressBar extends StatelessWidget {
   final double percent;
+
   const _MainGradientProgressBar({required this.percent});
 
   @override
@@ -173,22 +171,21 @@ class _MainGradientProgressBar extends StatelessWidget {
         color: const Color(0xFF282830),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: LayoutBuilder(builder: (context, constraints) {
-        final width = constraints.maxWidth * percent;
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth * percent;
 
-        return Container(
-          width: width,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFFFF6A00),
-                Color(0xFFCA00FF),
-              ],
+          return Container(
+            width: width,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF6A00), Color(0xFFCA00FF)],
+              ),
+              borderRadius: BorderRadius.circular(999),
             ),
-            borderRadius: BorderRadius.circular(999),
-          ),
-        );
-      }),
+          );
+        },
+      ),
     );
   }
 }
@@ -200,10 +197,8 @@ class _MainGradientProgressBar extends StatelessWidget {
 class _RepoSuccessCard extends StatelessWidget {
   final String name;
   final String subtitle;
-  const _RepoSuccessCard({
-    required this.name,
-    required this.subtitle,
-  });
+
+  const _RepoSuccessCard({required this.name, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -216,15 +211,20 @@ class _RepoSuccessCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: const Color(0xFF0B1A13),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            padding: const EdgeInsets.all(8),
-            child: SvgPicture.asset('assets/check_icon.svg'),
+            padding: const EdgeInsets.all(6),
+            child: SvgPicture.asset(
+              'assets/check_icon.svg',
+              width: 14,
+              height: 14,
+            ),
           ),
+
           const SizedBox(width: 14),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,10 +240,7 @@ class _RepoSuccessCard extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  color: Color(0xFF34E07A),
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Color(0xFF34E07A), fontSize: 12),
               ),
             ],
           ),
@@ -282,15 +279,20 @@ class _RepoInProgressCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: const Color(0xFF1D1D23),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                padding: const EdgeInsets.all(8),
-                child: SvgPicture.asset('assets/pause_icon.svg'),
+                padding: const EdgeInsets.all(6),
+                child: SvgPicture.asset(
+                  'assets/pause_icon.svg',
+                  width: 15,
+                  height: 15,
+                ),
               ),
+
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -317,10 +319,7 @@ class _RepoInProgressCard extends StatelessWidget {
               ),
               Text(
                 '$percent%',
-                style: const TextStyle(
-                  color: Color(0xFFC2C3CC),
-                  fontSize: 13,
-                ),
+                style: const TextStyle(color: Color(0xFFC2C3CC), fontSize: 13),
               ),
             ],
           ),
@@ -334,6 +333,7 @@ class _RepoInProgressCard extends StatelessWidget {
 
 class _RepoProgressBar extends StatelessWidget {
   final double percent;
+
   const _RepoProgressBar({required this.percent});
 
   @override
@@ -344,22 +344,21 @@ class _RepoProgressBar extends StatelessWidget {
         color: const Color(0xFF20202A),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: LayoutBuilder(builder: (context, constraints) {
-        final width = constraints.maxWidth * percent;
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth * percent;
 
-        return Container(
-          width: width,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFF6A5CFF),
-                Color(0xFFB06BFF),
-              ],
+          return Container(
+            width: width,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6A5CFF), Color(0xFFB06BFF)],
+              ),
+              borderRadius: BorderRadius.circular(999),
             ),
-            borderRadius: BorderRadius.circular(999),
-          ),
-        );
-      }),
+          );
+        },
+      ),
     );
   }
 }
@@ -370,6 +369,7 @@ class _RepoProgressBar extends StatelessWidget {
 
 class _RepoPendingCard extends StatelessWidget {
   final String name;
+
   const _RepoPendingCard({required this.name});
 
   @override
@@ -383,26 +383,24 @@ class _RepoPendingCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: const Color(0xFF1D1D23),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Center(
               child: Container(
-                width: 13,
-                height: 13,
+                width: 11,
+                height: 11,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFF5F6068),
-                    width: 2,
-                  ),
+                  border: Border.all(color: const Color(0xFF61616A), width: 2),
                 ),
               ),
             ),
           ),
+
           const SizedBox(width: 14),
           Text(
             name,
@@ -424,6 +422,7 @@ class _RepoPendingCard extends StatelessWidget {
 
 class _SectionTitle extends StatelessWidget {
   final String title;
+
   const _SectionTitle(this.title);
 
   @override
@@ -448,24 +447,28 @@ class _ViewHistoryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 54,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF6A5CFF),
-            Color(0xFFB06BFF),
-          ],
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const HistoryScreen()));
+      },
+      child: Container(
+        height: 54,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6A5CFF), Color(0xFFB06BFF)],
+          ),
+          borderRadius: BorderRadius.circular(30),
         ),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: const Center(
-        child: Text(
-          'View History',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+        child: const Center(
+          child: Text(
+            'View History',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
