@@ -83,7 +83,7 @@ class _RepositoriesScreenState extends State<RepositoriesScreen> {
                 final repo = entry.value;
                 return Padding(
                   padding: EdgeInsets.only(
-                    bottom: index == _repos.length - 1 ? 32 : 12,
+                    bottom: index == _repos.length - 1 ? 40 : 12,
                   ),
                   child: _RepoCard(
                     repo: repo,
@@ -139,10 +139,10 @@ class _ReposHeader extends StatelessWidget {
         GestureDetector(
           onTap: () => Navigator.of(context).pop(),
           child: Container(
-            width: 38,
-            height: 38,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1E),
+              color: _RColors.backButtonBackground,
               borderRadius: BorderRadius.circular(14),
             ),
             alignment: Alignment.center,
@@ -163,12 +163,17 @@ class _ReposHeader extends StatelessWidget {
                 color: Colors.white,
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               '$selectedCount Selected',
-              style: const TextStyle(color: Color(0xFF9E9EAA), fontSize: 13),
+              style: const TextStyle(
+                color: _RColors.subtitle,
+                fontSize: 13,
+                height: 1.2,
+              ),
             ),
           ],
         ),
@@ -187,12 +192,12 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 50,
+      height: 52,
       decoration: BoxDecoration(
-        color: const Color(0xFF15151A),
+        color: _RColors.searchBackground,
         borderRadius: BorderRadius.circular(26),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Row(
         children: [
           SvgPicture.asset(
@@ -200,14 +205,17 @@ class _SearchField extends StatelessWidget {
             width: 18,
             height: 18,
             colorFilter: const ColorFilter.mode(
-              Color(0xFF8E8E96),
+              _RColors.searchIcon,
               BlendMode.srcIn,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           const Text(
-            'Search repositories …….',
-            style: TextStyle(color: Color(0xFF6C6C78), fontSize: 14),
+            'Search repositories .......',
+            style: TextStyle(
+              color: _RColors.searchHint,
+              fontSize: 14,
+            ),
           ),
         ],
       ),
@@ -234,10 +242,12 @@ class _RepoCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF07120D),
+          color: _RColors.cardBackground,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: selected ? const Color(0xFF6A5CFF) : const Color(0xFF25252E),
+            color: selected
+                ? _RColors.cardBorderSelected
+                : _RColors.cardBorder,
             width: 1.2,
           ),
         ),
@@ -245,7 +255,7 @@ class _RepoCard extends StatelessWidget {
           children: [
             _RepoSelectionIndicator(
               selected: selected,
-              onChanged: (value) => onChanged(value),
+              onChanged: onChanged,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -254,13 +264,15 @@ class _RepoCard extends StatelessWidget {
                 children: [
                   Text(
                     repo.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       Container(
@@ -275,7 +287,7 @@ class _RepoCard extends StatelessWidget {
                       Text(
                         repo.language,
                         style: const TextStyle(
-                          color: Color(0xFF9E9EAA),
+                          color: _RColors.subtitle,
                           fontSize: 12,
                         ),
                       ),
@@ -283,13 +295,13 @@ class _RepoCard extends StatelessWidget {
                       const Icon(
                         Icons.star_rounded,
                         size: 14,
-                        color: Color(0xFF9E9EAA),
+                        color: _RColors.subtitle,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         repo.stars,
                         style: const TextStyle(
-                          color: Color(0xFF9E9EAA),
+                          color: _RColors.subtitle,
                           fontSize: 12,
                         ),
                       ),
@@ -323,23 +335,19 @@ class _RepoSelectionIndicator extends StatelessWidget {
         height: 22,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          color: selected
-              ? const Color(0xFF8C5CFF) // selected purple background
-              : const Color(0xFF0F1516), // empty background
+          color: selected ? _RColors.checkboxSelected : _RColors.checkboxEmpty,
           border: Border.all(
-            color: selected
-                ? Colors.transparent
-                : const Color(0xFF505059), // border for unselected
+            color: selected ? Colors.transparent : _RColors.checkboxBorder,
             width: 1.3,
           ),
         ),
         alignment: Alignment.center,
         child: selected
             ? SvgPicture.asset(
-                'assets/checkbox_icon.svg',
-                width: 10,
-                height: 10,
-              )
+          'assets/checkbox_icon.svg',
+          width: 10,
+          height: 10,
+        )
             : null,
       ),
     );
@@ -351,5 +359,21 @@ class _RepoSelectionIndicator extends StatelessWidget {
 //
 
 class _RColors {
-  static const Color background = Color(0xFF0A0A0D);
+  // from screenshot sampling
+  static const Color background = Color(0xFF000000); // page background
+  static const Color searchBackground = Color(0xFF151518);
+  static const Color searchHint = Color(0xFF8A8A8C);
+  static const Color searchIcon = Color(0xFF8E8E96);
+
+  static const Color subtitle = Color(0xFF9FA3A1);
+
+  static const Color cardBackground = Color(0xFF010906);
+  static const Color cardBorder = Color(0xFF171F1C);
+  static const Color cardBorderSelected = Color(0xFF7F56D9);
+
+  static const Color backButtonBackground = Color(0xFF1A1A1A);
+
+  static const Color checkboxSelected = Color(0xFF7F56D9);
+  static const Color checkboxEmpty = Color(0xFF010906);
+  static const Color checkboxBorder = Color(0xFF493561);
 }
