@@ -122,3 +122,8 @@ flutter:
     - assets/failed_icon.svg
     - assets/search_icon.svg
     - assets/checkbox_icon.svg
+    - assets/notifications_icon.svg
+    - assets/autorun_icon.svg
+    - assets/dark_mode_icon.svg
+    - assets/privacy_icon.svg
+    - assets/logout_icon.svg

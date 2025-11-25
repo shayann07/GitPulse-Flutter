@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gitpulse/repositories_screen.dart';
 import 'package:gitpulse/run_screen.dart';
+import 'package:gitpulse/settings_screen.dart';
 
 import 'history_screen.dart';
 
@@ -134,18 +135,26 @@ class _Header extends StatelessWidget {
         // ========== SETTINGS ICON ==========
         Transform.translate(
           offset: const Offset(0, -1),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: _GitPulseColors.inner, // corrected color
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Center(
-              child: SvgPicture.asset(
-                "assets/ic_gear.svg",
-                width: 22,
-                height: 22,
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: _GitPulseColors.inner,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  "assets/ic_gear.svg",
+                  width: 22,
+                  height: 22,
+                ),
               ),
             ),
           ),
