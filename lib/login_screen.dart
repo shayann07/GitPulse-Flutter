@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'auth_service.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -101,13 +102,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       // ==== GOOGLE BUTTON (WITH GLOW) ====
                       GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const HomeScreen(),
-                            ),
-                          );
+                        onTap: () async {
+                          final res = await AuthService.instance
+                              .loginWithGitHub();
+
+                          if (!mounted) return;
+
+                          if (res.success) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const HomeScreen(),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(res.errorMessage!)),
+                            );
+                          }
                         },
                         child: Container(
                           height: 54,

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "423597806494",
+    "project_id": "gitpulse-devsphere",
+    "storage_bucket": "gitpulse-devsphere.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:423597806494:android:2f0eeda555f02fe56dfc8f",
+        "android_client_info": {
+          "package_name": "com.devsphere.gitpulse"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXWnW2n2LVdbIHYg4byeZBn2cIUZQHVoo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
