@@ -1,16 +1,79 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:gitpulse/repositories_screen.dart';
-import 'package:gitpulse/run_screen.dart';
-import 'package:gitpulse/settings_screen.dart';
 
 import 'history_screen.dart';
+import 'models/today_stats.dart';
+import 'providers/app_providers.dart';
+import 'repositories_screen.dart';
+import 'run_screen.dart';
+import 'settings_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userAsync = ref.watch(userProfileProvider);
+    final reposAsync = ref.watch(reposProvider);
+    final statsAsync = ref.watch(todayStatsProvider);
+    final settingsAsync = ref.watch(userSettingsProvider);
+
+    final username = userAsync.when(
+      data: (user) => user?.username ?? 'GitHub user',
+      loading: () => 'Loading...',
+      error: (_, __) => 'GitHub user',
+    );
+
+    final repoCount = reposAsync.when(
+      data: (repos) => repos.length.toString(),
+      loading: () => '...',
+      error: (_, __) => '--',
+    );
+
+    final todayCommits = statsAsync.when(
+      data: (TodayStats stats) => stats.totalCommits.toString(),
+      loading: () => '...',
+      error: (_, __) => '--',
+    );
+
+    final successRate = statsAsync.when(
+      data: (TodayStats stats) =>
+      '${stats.successRate.isNaN ? 0 : stats.successRate.round()}%',
+      loading: () => '...',
+      error: (_, __) => '--',
+    );
+
+    // ===== DYNAMIC "X Repositories Selected" CHIP TEXT =====
+    final selectedLabel = reposAsync.when(
+      data: (repos) {
+        final settings = settingsAsync.asData?.value;
+        final includePrivateFlag = settings?.includePrivate ?? true;
+
+        int selectedCount = 0;
+
+        for (final repo in repos) {
+          final key = repo.fullName;
+          bool selected;
+
+          if (settings != null &&
+              settings.repoSelections.containsKey(key)) {
+            // explicit user choice from Firestore
+            selected = settings.repoSelections[key]!;
+          } else {
+            // default selection logic based on includePrivate
+            selected = includePrivateFlag ? true : !repo.isPrivate;
+          }
+
+          if (selected) selectedCount++;
+        }
+
+        return '$selectedCount Repositories Selected';
+      },
+      loading: () => 'Loading...',
+      error: (_, __) => 'Repositories Selected',
+    );
+
     return Scaffold(
       backgroundColor: _GitPulseColors.background,
       body: SafeArea(
@@ -20,15 +83,18 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Header(),
-              SizedBox(height: 26),
-              _MainRunCard(),
-              SizedBox(height: 22),
-              _MetricRow(),
-              SizedBox(height: 24),
-              _SectionTitle('Quick Action'),
-              SizedBox(height: 12),
-              // ========= MANAGE REPOSITORIES =========
+              _Header(username: username),
+              const SizedBox(height: 26),
+              _MainRunCard(selectedLabel: selectedLabel),
+              const SizedBox(height: 22),
+              _MetricRow(
+                repoCount: repoCount,
+                todayCommits: todayCommits,
+                successRate: successRate,
+              ),
+              const SizedBox(height: 24),
+              const _SectionTitle('Quick Action'),
+              const SizedBox(height: 12),
               GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -44,10 +110,7 @@ class HomeScreen extends StatelessWidget {
                   subtitle: 'Select & configure repositories',
                 ),
               ),
-
-              SizedBox(height: 10),
-
-              // ========= VIEW HISTORY =========
+              const SizedBox(height: 10),
               GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -61,12 +124,11 @@ class HomeScreen extends StatelessWidget {
                   subtitle: 'Past runs & logs',
                 ),
               ),
-
-              SizedBox(height: 26),
-              _SectionTitle('Recent Activities'),
-              SizedBox(height: 14),
-              _RecentActivityCard(),
-              SizedBox(height: 24),
+              const SizedBox(height: 26),
+              const _SectionTitle('Recent Activities'),
+              const SizedBox(height: 14),
+              const _RecentActivityCard(),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -78,14 +140,15 @@ class HomeScreen extends StatelessWidget {
 // ===================== HEADER =====================
 
 class _Header extends StatelessWidget {
-  const _Header();
+  final String username;
+
+  const _Header({required this.username});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // ========== LOGO ==========
         Transform.translate(
           offset: const Offset(-3, 0),
           child: Container(
@@ -100,17 +163,14 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
-
         const SizedBox(width: 1),
-
-        // ========== APP NAME + USERNAME ==========
         Transform.translate(
           offset: const Offset(-3, -1.5),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-            children: const [
-              Text(
+            children: [
+              const Text(
                 "GitPulse",
                 style: TextStyle(
                   color: Colors.white,
@@ -119,9 +179,9 @@ class _Header extends StatelessWidget {
                 ),
               ),
               Text(
-                "@shayan-dev",
-                style: TextStyle(
-                  color: Color(0xFFB4B4C0), // corrected
+                '@$username',
+                style: const TextStyle(
+                  color: Color(0xFFB4B4C0),
                   fontSize: 12,
                   height: 1.6,
                 ),
@@ -129,10 +189,7 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-
         const Spacer(),
-
-        // ========== SETTINGS ICON ==========
         Transform.translate(
           offset: const Offset(0, -1),
           child: GestureDetector(
@@ -166,10 +223,10 @@ class _Header extends StatelessWidget {
 
 // ===================== MAIN RUN CARD =====================
 
-// ===================== MAIN RUN CARD =====================
-
 class _MainRunCard extends StatelessWidget {
-  const _MainRunCard();
+  final String selectedLabel;
+
+  const _MainRunCard({required this.selectedLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +240,6 @@ class _MainRunCard extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Chip
           Align(
             alignment: Alignment.topCenter,
             child: Container(
@@ -204,9 +260,9 @@ class _MainRunCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    '6 Repositories Selected',
-                    style: TextStyle(
+                  Text(
+                    selectedLabel,
+                    style: const TextStyle(
                       color: _GitPulseColors.chipText,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -216,10 +272,7 @@ class _MainRunCard extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 32),
-
-          // Play button
           Center(
             child: GestureDetector(
               onTap: () {
@@ -235,9 +288,7 @@ class _MainRunCard extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 24),
-
           const Text(
             'Ready to Execute',
             style: TextStyle(
@@ -262,32 +313,40 @@ class _MainRunCard extends StatelessWidget {
 // ===================== METRICS =====================
 
 class _MetricRow extends StatelessWidget {
-  const _MetricRow();
+  final String repoCount;
+  final String todayCommits;
+  final String successRate;
+
+  const _MetricRow({
+    required this.repoCount,
+    required this.todayCommits,
+    required this.successRate,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
+      children: [
         Expanded(
           child: _MetricCard(
             iconAsset: 'assets/repo_icon.svg',
-            value: '24',
+            value: repoCount,
             label: 'Repositories',
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
           child: _MetricCard(
             iconAsset: 'assets/today_icon.svg',
-            value: '12',
+            value: todayCommits,
             label: 'Today',
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
           child: _MetricCard(
             iconAsset: 'assets/success_icon.svg',
-            value: '98%',
+            value: successRate,
             label: 'Success',
           ),
         ),
@@ -316,7 +375,7 @@ class _MetricCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min, // <-- IMPORTANT FIX
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
@@ -329,9 +388,7 @@ class _MetricCard extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             child: SvgPicture.asset(iconAsset, width: 20, height: 20),
           ),
-
-          const SizedBox(height: 12), // nicer spacing
-
+          const SizedBox(height: 12),
           Text(
             value,
             style: const TextStyle(
@@ -340,9 +397,7 @@ class _MetricCard extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-
           const SizedBox(height: 4),
-
           Text(
             label,
             style: const TextStyle(color: Colors.white54, fontSize: 12),
@@ -394,7 +449,7 @@ class _QuickActionTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: _GitPulseColors.card,
-        borderRadius: BorderRadius.circular(18), // corrected radius
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
@@ -505,7 +560,7 @@ class _RecentActivityItem extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  color: Color(0xFFE2E2E9), // corrected
+                  color: Color(0xFFE2E2E9),
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
                 ),
@@ -514,7 +569,7 @@ class _RecentActivityItem extends StatelessWidget {
               Text(
                 detail,
                 style: const TextStyle(
-                  color: Color(0xFF8D8D95), // corrected
+                  color: Color(0xFF8D8D95),
                   fontSize: 12,
                 ),
               ),

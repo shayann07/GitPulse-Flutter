@@ -1,111 +1,141 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-class RepositoriesScreen extends StatefulWidget {
+import 'models/github_repo.dart';
+import 'providers/app_providers.dart';
+import 'services/firestore_service.dart';
+
+class RepositoriesScreen extends ConsumerStatefulWidget {
   const RepositoriesScreen({super.key});
 
   @override
-  State<RepositoriesScreen> createState() => _RepositoriesScreenState();
+  ConsumerState<RepositoriesScreen> createState() =>
+      _RepositoriesScreenState();
 }
 
-class _RepositoriesScreenState extends State<RepositoriesScreen> {
-  final List<_RepoItem> _repos = [
-    _RepoItem(
-      name: 'Gitpluse-Android',
-      language: 'kotlin',
-      languageColor: const Color(0xFFB278FF),
-      stars: '142',
-      selected: true,
-    ),
-    _RepoItem(
-      name: 'Dot Files',
-      language: 'Shell',
-      languageColor: const Color(0xFF4CD964),
-      stars: '23',
-      selected: true,
-    ),
-    _RepoItem(
-      name: 'Website',
-      language: 'Typescript',
-      languageColor: const Color(0xFF5AC8FA),
-      stars: '89',
-      selected: true,
-    ),
-    _RepoItem(
-      name: 'Analytics-Dashboard',
-      language: 'Python',
-      languageColor: const Color(0xFFB278FF),
-      stars: '201',
-      selected: true,
-    ),
-    _RepoItem(
-      name: 'Mobile-Lib',
-      language: 'Java',
-      languageColor: const Color(0xFFFFCC00),
-      stars: '67',
-      selected: false,
-    ),
-    _RepoItem(
-      name: 'Api-Server',
-      language: 'Go',
-      languageColor: const Color(0xFF5AC8FA),
-      stars: '134',
-      selected: false,
-    ),
-    _RepoItem(
-      name: 'Api-Server',
-      language: 'Go',
-      languageColor: const Color(0xFF5AC8FA),
-      stars: '134',
-      selected: false,
-    ),
-  ];
+class _RepositoriesScreenState extends ConsumerState<RepositoriesScreen> {
+  // local override of selections for snappy UI
+  final Map<String, bool> _localSelections = {};
 
   @override
   Widget build(BuildContext context) {
-    final selectedCount = _repos.where((r) => r.selected).length;
+    final reposAsync = ref.watch(reposProvider);
+    final settingsAsync = ref.watch(userSettingsProvider);
+    final sessionAsync = ref.watch(sessionProvider);
 
     return Scaffold(
       backgroundColor: _RColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _ReposHeader(selectedCount: selectedCount),
-              const SizedBox(height: 24),
-              const _SearchField(),
-              const SizedBox(height: 22),
-              ..._repos.asMap().entries.map((entry) {
-                final index = entry.key;
-                final repo = entry.value;
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: index == _repos.length - 1 ? 40 : 12,
-                  ),
-                  child: _RepoCard(
-                    repo: repo,
-                    onChanged: (value) {
-                      setState(() {
-                        repo.selected = value;
-                      });
-                    },
-                  ),
-                );
-              }),
-            ],
+        child: reposAsync.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(),
           ),
+          error: (err, stack) => Center(
+            child: Text(
+              'Failed to load repositories\n$err',
+              style: const TextStyle(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          data: (repos) {
+            if (repos.isEmpty) {
+              return const Center(
+                child: Text(
+                  'No eligible repositories found.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              );
+            }
+
+            final settings = settingsAsync.asData?.value;
+            final includePrivateFlag = settings?.includePrivate ?? true;
+
+            final repoSelections = <String, bool>{};
+
+            for (final repo in repos) {
+              final key = repo.fullName;
+
+              if (_localSelections.containsKey(key)) {
+                // session-local override (tapping in this screen)
+                repoSelections[key] = _localSelections[key]!;
+              } else if (settings != null &&
+                  settings.repoSelections.containsKey(key)) {
+                // stored selection in Firestore
+                repoSelections[key] = settings.repoSelections[key]!;
+              } else {
+                // DEFAULT SELECTION:
+                // - includePrivate == true  -> all repos preselected
+                // - includePrivate == false -> only public repos preselected
+                final defaultSelected =
+                includePrivateFlag ? true : !repo.isPrivate;
+                repoSelections[key] = defaultSelected;
+              }
+            }
+
+            final selectedCount =
+                repoSelections.values.where((v) => v).length;
+
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ReposHeader(selectedCount: selectedCount),
+                  const SizedBox(height: 24),
+                  const _SearchField(),
+                  const SizedBox(height: 22),
+                  ...repos.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final repo = entry.value;
+                    final key = repo.fullName;
+                    final selected = repoSelections[key] ?? true;
+
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        bottom: index == repos.length - 1 ? 40 : 12,
+                      ),
+                      child: _RepoCard(
+                        repo: _RepoItem(
+                          name: repo.name,
+                          language: repo.language ?? 'Unknown',
+                          languageColor:
+                          _languageColor(repo.language ?? 'Unknown'),
+                          stars: repo.stars.toString(),
+                          selected: selected,
+                        ),
+                        onChanged: (value) async {
+                          setState(() {
+                            _localSelections[key] = value;
+                          });
+
+                          final session = sessionAsync.value;
+                          final uid = session?.uid;
+                          if (uid != null) {
+                            await FirestoreService.instance
+                                .updateRepoSelection(
+                              uid: uid,
+                              repoKey: key,
+                              selected: value,
+                            );
+                          }
+                        },
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
   }
 }
 
-//
 // ===================== MODEL =====================
-//
 
 class _RepoItem {
   final String name;
@@ -123,9 +153,28 @@ class _RepoItem {
   });
 }
 
-//
+Color _languageColor(String language) {
+  switch (language.toLowerCase()) {
+    case 'kotlin':
+      return const Color(0xFFB278FF);
+    case 'shell':
+      return const Color(0xFF4CD964);
+    case 'typescript':
+      return const Color(0xFF5AC8FA);
+    case 'python':
+      return const Color(0xFFB278FF);
+    case 'java':
+      return const Color(0xFFFFCC00);
+    case 'go':
+      return const Color(0xFF5AC8FA);
+    case 'dart':
+      return const Color(0xFF52CEFF);
+    default:
+      return const Color(0xFF9FA3A1);
+  }
+}
+
 // ===================== HEADER =====================
-//
 
 class _ReposHeader extends StatelessWidget {
   final int selectedCount;
@@ -182,10 +231,6 @@ class _ReposHeader extends StatelessWidget {
   }
 }
 
-//
-// ===================== SEARCH FIELD =====================
-//
-
 class _SearchField extends StatelessWidget {
   const _SearchField();
 
@@ -222,10 +267,6 @@ class _SearchField extends StatelessWidget {
     );
   }
 }
-
-//
-// ===================== REPO CARD =====================
-//
 
 class _RepoCard extends StatelessWidget {
   final _RepoItem repo;
@@ -354,13 +395,8 @@ class _RepoSelectionIndicator extends StatelessWidget {
   }
 }
 
-//
-// ===================== COLORS =====================
-//
-
 class _RColors {
-  // from screenshot sampling
-  static const Color background = Color(0xFF000000); // page background
+  static const Color background = Color(0xFF000000);
   static const Color searchBackground = Color(0xFF151518);
   static const Color searchHint = Color(0xFF8A8A8C);
   static const Color searchIcon = Color(0xFF8E8E96);

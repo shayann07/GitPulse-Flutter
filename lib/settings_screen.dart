@@ -1,5 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:gitpulse/services/auth_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import 'walkthrough_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -9,109 +15,213 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notificationsEnabled = false;
-  bool _autoRunEnabled = false;
-  bool _darkModeEnabled = true;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
+  String? _uid;
+  String _username = '';
+
+  bool _includePrivate = true;
+  int _commitsPerRun = 10;
+
+  String _appVersion = '1.0.0';
+  String _buildLabel = '';
+
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      final uid = await _secureStorage.read(key: 'github_user_id');
+      _uid = uid;
+
+      if (uid != null) {
+        final userDoc = await _firestore.collection('users').doc(uid).get();
+        final data = userDoc.data();
+
+        if (data != null) {
+          _username = (data['username'] ?? '') as String;
+
+          final settings =
+              (data['settings'] as Map<String, dynamic>?) ??
+              <String, dynamic>{};
+          _includePrivate = settings['includePrivate'] as bool? ?? true;
+          _commitsPerRun = settings['commitsPerRun'] as int? ?? 10;
+        }
+      }
+
+      try {
+        final info = await PackageInfo.fromPlatform();
+        _appVersion = info.version;
+      } catch (_) {
+        // ignore, keep default
+      }
+
+      final now = DateTime.now();
+      _buildLabel = '${now.year}.${now.month.toString().padLeft(2, '0')}';
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _updateIncludePrivate(bool value) async {
+    setState(() => _includePrivate = value);
+
+    if (_uid == null) return;
+
+    await _firestore.collection('users').doc(_uid).set({
+      'settings': {'includePrivate': value},
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> _updateCommitsPerRun(int value) async {
+    if (value < 1) value = 1;
+    if (value > 500) value = 500;
+
+    setState(() => _commitsPerRun = value);
+
+    if (_uid == null) return;
+
+    await _firestore.collection('users').doc(_uid).set({
+      'settings': {'commitsPerRun': value},
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    await AuthService.instance.logout();
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const WalkthroughScreen()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _SettingsColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SettingsHeader(),
-              const SizedBox(height: 24),
-
-              // ===== ACCOUNT SECTION =====
-              const _SectionTitle('Account'),
-              const SizedBox(height: 12),
-              const _AccountCard(),
-              const SizedBox(height: 24),
-
-              // ===== PREFERENCES SECTION =====
-              const _SectionTitle('Preferences'),
-              const SizedBox(height: 12),
-
-              Container(
-                decoration: BoxDecoration(
-                  color: _SettingsColors.card,
-                  borderRadius: BorderRadius.circular(24),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
                 ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _PreferenceTile(
-                      iconAsset: 'assets/notifications_icon.svg',
-                      title: 'Notification',
-                      subtitle: 'Get run updates',
-                      value: _notificationsEnabled,
-                      onChanged: (value) {
-                        setState(() => _notificationsEnabled = value);
-                      },
+                    const _SettingsHeader(),
+                    const SizedBox(height: 24),
+
+                    // ===== ACCOUNT SECTION =====
+                    const _SectionTitle('Account'),
+                    const SizedBox(height: 12),
+                    _AccountCard(username: _username),
+                    const SizedBox(height: 24),
+
+                    // ===== PREFERENCES SECTION =====
+                    const _SectionTitle('Preferences'),
+                    const SizedBox(height: 12),
+
+                    Container(
+                      decoration: BoxDecoration(
+                        color: _SettingsColors.card,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Column(
+                        children: [
+                          // Notification (hardcoded OFF, non-functional)
+                          _PreferenceTile(
+                            iconAsset: 'assets/notifications_icon.svg',
+                            title: 'Notification',
+                            subtitle: 'Get run updates',
+                            value: false,
+                            onChanged: (_) {},
+                          ),
+                          const _SettingsDivider(),
+
+                          // Auto Run (hardcoded OFF, non-functional)
+                          _PreferenceTile(
+                            iconAsset: 'assets/autorun_icon.svg',
+                            title: 'Auto Run',
+                            subtitle: 'Schedule automatic runs',
+                            value: false,
+                            onChanged: (_) {},
+                          ),
+                          const _SettingsDivider(),
+
+                          // Dark mode (always enabled, cannot be turned off)
+                          _PreferenceTile(
+                            iconAsset: 'assets/dark_mode_icon.svg',
+                            title: 'Dark Mode',
+                            subtitle: 'Always enabled',
+                            value: true,
+                            onChanged: (_) {},
+                          ),
+                          const _SettingsDivider(),
+
+                          // Include private repos (Firestore-backed)
+                          _PreferenceTile(
+                            iconAsset: 'assets/privacy_icon.svg',
+                            title: 'Include private repos',
+                            subtitle: 'Use private repos when running',
+                            value: _includePrivate,
+                            onChanged: _updateIncludePrivate,
+                          ),
+                          const _SettingsDivider(),
+
+                          // Commits per run stepper
+                          _CommitsPerRunRow(
+                            value: _commitsPerRun,
+                            onDecrement: () =>
+                                _updateCommitsPerRun(_commitsPerRun - 1),
+                            onIncrement: () =>
+                                _updateCommitsPerRun(_commitsPerRun + 1),
+                          ),
+                        ],
+                      ),
                     ),
-                    const _SettingsDivider(),
-                    _PreferenceTile(
-                      iconAsset: 'assets/autorun_icon.svg',
-                      title: 'Auto Run',
-                      subtitle: 'Schedule automatic runs',
-                      value: _autoRunEnabled,
-                      onChanged: (value) {
-                        setState(() => _autoRunEnabled = value);
-                      },
+
+                    const SizedBox(height: 24),
+
+                    // ===== PRIVACY SECTION =====
+                    const _SectionTitle('Privacy'),
+                    const SizedBox(height: 12),
+
+                    const _SettingsActionCard(
+                      iconAsset: 'assets/privacy_icon.svg',
+                      title: 'Privacy & Permission',
+                      subtitle: 'Manage app access',
                     ),
-                    const _SettingsDivider(),
-                    _PreferenceTile(
-                      iconAsset: 'assets/dark_mode_icon.svg',
-                      title: 'Dark Mode',
-                      subtitle: 'Always enabled',
-                      value: _darkModeEnabled,
-                      onChanged: (value) {
-                        setState(() => _darkModeEnabled = value);
-                      },
-                    ),
+
+                    const SizedBox(height: 24),
+
+                    // ===== ABOUT SECTION =====
+                    const _SectionTitle('About'),
+                    const SizedBox(height: 12),
+
+                    _AboutCard(version: _appVersion, buildLabel: _buildLabel),
+                    const SizedBox(height: 12),
+
+                    const _SettingsActionCard(title: 'Term & Privacy'),
+
+                    const SizedBox(height: 32),
+
+                    _LogoutButton(onPressed: () => _handleLogout(context)),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 24),
-
-              // ===== PRIVACY SECTION =====
-              const _SectionTitle('Privacy'),
-              const SizedBox(height: 12),
-
-              const _SettingsActionCard(
-                iconAsset: 'assets/privacy_icon.svg',
-                title: 'Privacy & Permission',
-                subtitle: 'Manage app access',
-              ),
-
-              const SizedBox(height: 24),
-
-              // ===== ABOUT SECTION =====
-              const _SectionTitle('About'),
-              const SizedBox(height: 12),
-
-              const _AboutCard(),
-              const SizedBox(height: 12),
-
-              const _SettingsActionCard(
-                title: 'Term & Privacy',
-              ),
-
-              const SizedBox(height: 32),
-
-              _LogoutButton(
-                onPressed: () {
-                  // TODO: wire up real logout + token clearing
-                },
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -196,7 +306,9 @@ class _SectionTitle extends StatelessWidget {
 // ===================== ACCOUNT CARD =====================
 
 class _AccountCard extends StatelessWidget {
-  const _AccountCard();
+  final String username;
+
+  const _AccountCard({required this.username});
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +320,6 @@ class _AccountCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // same idea as home screen: clip + scale, no extra layout around svg
           Transform.translate(
             offset: const Offset(-2, 0),
             child: Container(
@@ -228,31 +339,24 @@ class _AccountCard extends StatelessWidget {
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
-                '@shayan-dev',
-                style: TextStyle(
+                '@$username',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(height: 4),
-              Text(
+              const SizedBox(height: 4),
+              const Text(
                 'Connected via GitHub',
-                style: TextStyle(
-                  color: Color(0xFF9FA3A1),
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Color(0xFF9FA3A1), fontSize: 12),
               ),
             ],
           ),
           const Spacer(),
-          SvgPicture.asset(
-            'assets/arrow_right.svg',
-            width: 14,
-            height: 14,
-          ),
+          // Arrow removed – no navigation from this card anymore.
         ],
       ),
     );
@@ -290,10 +394,7 @@ class _PreferenceTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             padding: const EdgeInsets.all(9),
-            child: SvgPicture.asset(
-              iconAsset,
-              fit: BoxFit.contain,
-            ),
+            child: SvgPicture.asset(iconAsset, fit: BoxFit.contain),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -312,16 +413,13 @@ class _PreferenceTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
             ),
           ),
           Transform.scale(
-            scale: 0.85, // smaller toggle
+            scale: 0.85,
             child: Switch.adaptive(
               value: value,
               onChanged: onChanged,
@@ -346,6 +444,106 @@ class _SettingsDivider extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       height: 1,
       color: _SettingsColors.divider,
+    );
+  }
+}
+
+// ===================== COMMITS PER RUN ROW =====================
+
+class _CommitsPerRunRow extends StatelessWidget {
+  final int value;
+  final VoidCallback onDecrement;
+  final VoidCallback onIncrement;
+
+  const _CommitsPerRunRow({
+    required this.value,
+    required this.onDecrement,
+    required this.onIncrement,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _SettingsColors.iconBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.bolt_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Commits per run',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Number of commits each run',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _CircleIconButton(icon: Icons.remove_rounded, onTap: onDecrement),
+              const SizedBox(width: 10),
+              Text(
+                '$value',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _CircleIconButton(icon: Icons.add_rounded, onTap: onIncrement),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _CircleIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: const Color(0xFF272735),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 18, color: Colors.white),
+      ),
     );
   }
 }
@@ -386,10 +584,7 @@ class _SettingsActionCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 padding: const EdgeInsets.all(10),
-                child: SvgPicture.asset(
-                  iconAsset!,
-                  fit: BoxFit.contain,
-                ),
+                child: SvgPicture.asset(iconAsset!, fit: BoxFit.contain),
               ),
               const SizedBox(width: 14),
             ],
@@ -418,11 +613,7 @@ class _SettingsActionCard extends StatelessWidget {
                 ],
               ),
             ),
-            SvgPicture.asset(
-              'assets/arrow_right.svg',
-              width: 14,
-              height: 14,
-            ),
+            SvgPicture.asset('assets/arrow_right.svg', width: 14, height: 14),
           ],
         ),
       ),
@@ -433,7 +624,10 @@ class _SettingsActionCard extends StatelessWidget {
 // ===================== ABOUT CARD =====================
 
 class _AboutCard extends StatelessWidget {
-  const _AboutCard();
+  final String version;
+  final String buildLabel; // renamed from "build"
+
+  const _AboutCard({required this.version, required this.buildLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -444,10 +638,10 @@ class _AboutCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
-        children: const [
-          _AboutRow(label: 'Version', value: '1.0.0'),
-          SizedBox(height: 8),
-          _AboutRow(label: 'Build', value: '2025.11'),
+        children: [
+          _AboutRow(label: 'Version', value: version),
+          const SizedBox(height: 8),
+          _AboutRow(label: 'Build', value: buildLabel),
         ],
       ),
     );
@@ -458,10 +652,7 @@ class _AboutRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _AboutRow({
-    required this.label,
-    required this.value,
-  });
+  const _AboutRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -469,18 +660,12 @@ class _AboutRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 13,
-          ),
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
         ),
         const Spacer(),
         Text(
           value,
-          style: const TextStyle(
-            color: Color(0xFFB4B4C0),
-            fontSize: 13,
-          ),
+          style: const TextStyle(color: Color(0xFFB4B4C0), fontSize: 13),
         ),
       ],
     );
@@ -504,20 +689,13 @@ class _LogoutButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF2B0E11),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: const Color(0xFFFF4B4B),
-            width: 1.4,
-          ),
+          border: Border.all(color: const Color(0xFFFF4B4B), width: 1.4),
         ),
         alignment: Alignment.center,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SvgPicture.asset(
-              'assets/logout_icon.svg',
-              width: 18,
-              height: 18,
-            ),
+            SvgPicture.asset('assets/logout_icon.svg', width: 18, height: 18),
             const SizedBox(width: 8),
             const Text(
               'Log Out',
@@ -541,7 +719,7 @@ class _SettingsColors {
   static const Color card = Color(0xFF131317);
   static const Color inner = Color(0xFF1E1E24);
 
-  static const Color iconBg = Color(0xFF21212F); // icon container color
+  static const Color iconBg = Color(0xFF21212F);
   static const Color accent = Color(0xFF7F56D9);
   static const Color divider = Color.fromARGB(40, 255, 255, 255);
 
