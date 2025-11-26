@@ -1,20 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:gitpulse/providers/app_providers.dart';
 import 'package:gitpulse/services/auth_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'walkthrough_screen.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
@@ -79,6 +81,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _firestore.collection('users').doc(_uid).set({
       'settings': {'includePrivate': value},
     }, SetOptions(merge: true));
+
+    // force Riverpod to reload settings everywhere (Home, Repos, etc.)
+    ref.invalidate(userSettingsProvider);
   }
 
   Future<void> _updateCommitsPerRun(int value) async {
@@ -92,6 +97,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _firestore.collection('users').doc(_uid).set({
       'settings': {'commitsPerRun': value},
     }, SetOptions(merge: true));
+
+    // also refresh settings provider
+    ref.invalidate(userSettingsProvider);
   }
 
   Future<void> _handleLogout(BuildContext context) async {

@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'history_screen.dart';
-import 'models/today_stats.dart';
-import 'providers/app_providers.dart';
+import '../models/today_stats.dart';
+import '../providers/app_providers.dart';
 import 'repositories_screen.dart';
 import 'run_screen.dart';
 import 'settings_screen.dart';

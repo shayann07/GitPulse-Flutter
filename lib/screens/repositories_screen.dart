@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import 'models/github_repo.dart';
-import 'providers/app_providers.dart';
-import 'services/firestore_service.dart';
+import '../providers/app_providers.dart';
+import '../services/firestore_service.dart';
 
 class RepositoriesScreen extends ConsumerStatefulWidget {
   const RepositoriesScreen({super.key});
 
   @override
-  ConsumerState<RepositoriesScreen> createState() =>
-      _RepositoriesScreenState();
+  ConsumerState<RepositoriesScreen> createState() => _RepositoriesScreenState();
 }
 
 class _RepositoriesScreenState extends ConsumerState<RepositoriesScreen> {
@@ -28,9 +26,7 @@ class _RepositoriesScreenState extends ConsumerState<RepositoriesScreen> {
       backgroundColor: _RColors.background,
       body: SafeArea(
         child: reposAsync.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(),
-          ),
+          loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, stack) => Center(
             child: Text(
               'Failed to load repositories\n$err',
@@ -67,19 +63,18 @@ class _RepositoriesScreenState extends ConsumerState<RepositoriesScreen> {
                 // DEFAULT SELECTION:
                 // - includePrivate == true  -> all repos preselected
                 // - includePrivate == false -> only public repos preselected
-                final defaultSelected =
-                includePrivateFlag ? true : !repo.isPrivate;
+                final defaultSelected = includePrivateFlag
+                    ? true
+                    : !repo.isPrivate;
                 repoSelections[key] = defaultSelected;
               }
             }
 
-            final selectedCount =
-                repoSelections.values.where((v) => v).length;
+            final selectedCount = repoSelections.values.where((v) => v).length;
 
             return SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -101,8 +96,9 @@ class _RepositoriesScreenState extends ConsumerState<RepositoriesScreen> {
                         repo: _RepoItem(
                           name: repo.name,
                           language: repo.language ?? 'Unknown',
-                          languageColor:
-                          _languageColor(repo.language ?? 'Unknown'),
+                          languageColor: _languageColor(
+                            repo.language ?? 'Unknown',
+                          ),
                           stars: repo.stars.toString(),
                           selected: selected,
                         ),
@@ -114,12 +110,14 @@ class _RepositoriesScreenState extends ConsumerState<RepositoriesScreen> {
                           final session = sessionAsync.value;
                           final uid = session?.uid;
                           if (uid != null) {
-                            await FirestoreService.instance
-                                .updateRepoSelection(
+                            await FirestoreService.instance.updateRepoSelection(
                               uid: uid,
                               repoKey: key,
                               selected: value,
                             );
+
+                            // make sure Home's settings snapshot updates too
+                            ref.invalidate(userSettingsProvider);
                           }
                         },
                       ),
@@ -257,10 +255,7 @@ class _SearchField extends StatelessWidget {
           const SizedBox(width: 12),
           const Text(
             'Search repositories .......',
-            style: TextStyle(
-              color: _RColors.searchHint,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: _RColors.searchHint, fontSize: 14),
           ),
         ],
       ),
@@ -286,18 +281,13 @@ class _RepoCard extends StatelessWidget {
           color: _RColors.cardBackground,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: selected
-                ? _RColors.cardBorderSelected
-                : _RColors.cardBorder,
+            color: selected ? _RColors.cardBorderSelected : _RColors.cardBorder,
             width: 1.2,
           ),
         ),
         child: Row(
           children: [
-            _RepoSelectionIndicator(
-              selected: selected,
-              onChanged: onChanged,
-            ),
+            _RepoSelectionIndicator(selected: selected, onChanged: onChanged),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -385,10 +375,10 @@ class _RepoSelectionIndicator extends StatelessWidget {
         alignment: Alignment.center,
         child: selected
             ? SvgPicture.asset(
-          'assets/checkbox_icon.svg',
-          width: 10,
-          height: 10,
-        )
+                'assets/checkbox_icon.svg',
+                width: 10,
+                height: 10,
+              )
             : null,
       ),
     );

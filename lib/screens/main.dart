@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import 'services/auth_service.dart';
-import 'firebase_options.dart';
+import '../services/auth_service.dart';
+import '../firebase_options.dart';
 import 'home_screen.dart';
 import 'walkthrough_screen.dart';
 
