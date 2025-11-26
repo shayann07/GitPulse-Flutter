@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../services/auth_service.dart';
-import '../firebase_options.dart';
-import 'home_screen.dart';
-import 'walkthrough_screen.dart';
+import 'services/auth_service.dart';
+import 'firebase_options.dart';
+import 'screens/home_screen.dart';
+import 'screens/walkthrough_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
