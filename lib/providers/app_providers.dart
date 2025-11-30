@@ -1,11 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../models/github_repo.dart';
+import '../models/run_history_entry.dart';
 import '../models/session_data.dart';
+import '../models/today_stats.dart';
 import '../models/user_profile.dart';
 import '../models/user_settings.dart';
-import '../models/github_repo.dart';
-import '../models/today_stats.dart';
 import '../services/firestore_service.dart';
 import '../services/github_service.dart';
 
@@ -51,4 +52,11 @@ final todayStatsProvider = FutureProvider<TodayStats>((ref) async {
   final session = await ref.watch(sessionProvider.future);
   if (session == null) return TodayStats.empty;
   return FirestoreService.instance.fetchTodayStats(session.uid);
+});
+
+/// Full run history list (latest first).
+final runHistoryProvider = FutureProvider<List<RunHistoryEntry>>((ref) async {
+  final session = await ref.watch(sessionProvider.future);
+  if (session == null) return [];
+  return FirestoreService.instance.fetchRunHistory(session.uid);
 });

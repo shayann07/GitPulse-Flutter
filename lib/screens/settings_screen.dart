@@ -84,6 +84,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     // force Riverpod to reload settings everywhere (Home, Repos, etc.)
     ref.invalidate(userSettingsProvider);
+    ref.invalidate(reposProvider);
   }
 
   Future<void> _updateCommitsPerRun(int value) async {

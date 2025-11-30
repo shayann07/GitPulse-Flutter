@@ -133,4 +133,5 @@ flutter:
     - assets/autorun_icon.svg
     - assets/dark_mode_icon.svg
     - assets/privacy_icon.svg
+    - assets/github_icon.svg
     - assets/logout_icon.svg

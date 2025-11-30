@@ -12,8 +12,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool obscurePassword = true;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -23,171 +21,132 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           children: [
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 26),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 60),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 26),
+                child: Column(
+                  // THIS is the fix: align to top, but with proper padding
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Move logo slightly higher via top padding
+                    const SizedBox(height: 40),
 
-                      // ==== BIGGER LOGO ====
-                      SizedBox(
-                        width: 145,
-                        height: 145,
-                        child: SvgPicture.asset("assets/gitpulse_logo.svg"),
+                    // ==== LOGO ====
+                    SizedBox(
+                      width: 160,
+                      height: 160,
+                      child: SvgPicture.asset("assets/gitpulse_logo.svg"),
+                    ),
+
+                    const SizedBox(height: 5),
+
+                    // ==== TITLE ====
+                    const Text(
+                      "Welcome Back",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.3,
                       ),
+                    ),
 
-                      // ==== TITLE ====
-                      const Text(
-                        "Sign in to your\nAccount",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
+                    const SizedBox(height: 12),
+
+                    // ==== SUBTITLE ====
+                    Text(
+                      "Access your GitHub account seamlessly\nwith a single tap.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.45,
+                        color: Colors.white.withOpacity(0.55),
                       ),
+                    ),
 
-                      const SizedBox(height: 36),
+                    const SizedBox(height: 45),
+                    // FIXED: better spacing before button
 
-                      // ==== INPUT FIELDS ====
-                      InputField(
-                        hint: "Username or Email",
-                        icon: "assets/ic_email.svg",
-                      ),
+                    // ==== GITHUB LOGIN BUTTON ====
+                    GestureDetector(
+                      onTap: () async {
+                        final res = await AuthService.instance
+                            .loginWithGitHub();
 
-                      const SizedBox(height: 16),
+                        if (!mounted) return;
 
-                      InputField(
-                        hint: "Password",
-                        icon: "assets/ic_password.svg",
-                        isPassword: true,
-                        obscurePassword: obscurePassword,
-                        onEyeTap: () {
-                          setState(() => obscurePassword = !obscurePassword);
-                        },
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      // ==== LOGIN BUTTON ====
-                      GestureDetector(
-                        onTap: () {},
-                        child: Container(
-                          height: 54,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(50),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFA961FB), Color(0xFF5B5EDB)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                        if (res.success) {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const HomeScreen(),
                             ),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            "Log In",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // ==== GOOGLE BUTTON (WITH GLOW) ====
-                      GestureDetector(
-                        onTap: () async {
-                          final res = await AuthService.instance
-                              .loginWithGitHub();
-
-                          if (!mounted) return;
-
-                          if (res.success) {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const HomeScreen(),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(res.errorMessage!)),
-                            );
-                          }
-                        },
-                        child: Container(
-                          height: 54,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(50),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFA961FB), Color(0xFF4285F4)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFF9A61F8,
-                                ).withOpacity(0.35),
-                                blurRadius: 20,
-                                spreadRadius: 1,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Container(
-                            margin: const EdgeInsets.all(1),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(50),
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF120F1A),
-                                  // subtle purple-black blend
-                                  Color(0xFF050509),
-                                ],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                res.errorMessage ?? "GitHub login failed",
                               ),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SvgPicture.asset(
-                                  "assets/ic_google.svg",
-                                  height: 20,
-                                  width: 20,
-                                ),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  "Continue with Google",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        height: 56,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFA961FB), Color(0xFF5B5EDB)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
+                          borderRadius: BorderRadius.circular(40),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFA961FB).withOpacity(0.38),
+                              blurRadius: 25,
+                              spreadRadius: 1,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SvgPicture.asset(
+                              "assets/github_icon.svg",
+                              height: 21,
+                              width: 21,
+                              colorFilter: const ColorFilter.mode(
+                                Colors.white,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              "Continue with GitHub",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                    ),
 
-                      const SizedBox(height: 30),
-                    ],
-                  ),
+                    const SizedBox(height: 40),
+                  ],
                 ),
               ),
             ),
 
-            // ==== FOOTER FIXED AT BOTTOM ====
+            // ==== FOOTER ====
             Padding(
-              padding: const EdgeInsets.only(bottom: 18),
+              padding: const EdgeInsets.only(bottom: 22),
               child: Column(
                 children: [
                   const Text(
@@ -195,10 +154,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                   const SizedBox(height: 4),
-
-                  RichText(
-                    textAlign: TextAlign.center,
-                    text: const TextSpan(
+                  Text.rich(
+                    TextSpan(
                       children: [
                         TextSpan(
                           text: "Terms of Service",
@@ -208,12 +165,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        TextSpan(
+                        const TextSpan(
                           text: " and ",
                           style: TextStyle(
                             color: Colors.white54,
                             fontSize: 12.5,
-                            fontWeight: FontWeight.w400,
                           ),
                         ),
                         TextSpan(
@@ -226,83 +182,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ===========================================================
-// INPUT FIELD — Fixed colors, radius, icon size, hint visibility
-// ===========================================================
-
-class InputField extends StatelessWidget {
-  final String hint;
-  final String icon;
-  final bool isPassword;
-  final bool obscurePassword;
-  final VoidCallback? onEyeTap;
-
-  const InputField({
-    super.key,
-    required this.hint,
-    required this.icon,
-    this.isPassword = false,
-    this.obscurePassword = false,
-    this.onEyeTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1F), // closer to Figma
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: [
-          SvgPicture.asset(
-            icon,
-            width: 16, // smaller icon
-            height: 16,
-          ),
-          const SizedBox(width: 12),
-
-          // TEXT FIELD + VISIBLE HINT
-          Expanded(
-            child: TextField(
-              obscureText: isPassword ? obscurePassword : false,
-              cursorColor: Colors.white,
-              style: const TextStyle(color: Colors.white, fontSize: 15),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: hint,
-                hintStyle: const TextStyle(
-                  color: Colors.white38,
-                  fontSize: 14.5,
-                ),
-              ),
-            ),
-          ),
-
-          // PASSWORD EYE ICON
-          if (isPassword)
-            GestureDetector(
-              onTap: onEyeTap,
-              child: const Icon(
-                Icons.visibility_outlined,
-                size: 18,
-                color: Colors.white38,
-              ),
-            ),
-        ],
       ),
     );
   }

@@ -1,33 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../models/run_history_entry.dart';
+import '../providers/app_providers.dart';
+
 enum _HistoryFilter { all, success, failed }
+
 enum _RunStatus { success, partial, failed }
 
-class HistoryScreen extends StatefulWidget {
+class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   _HistoryFilter _selected = _HistoryFilter.all;
 
   @override
   Widget build(BuildContext context) {
+    final historyAsync = ref.watch(runHistoryProvider);
+
     return Scaffold(
       backgroundColor: _HColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _HistoryHeader(
-                onBack: () => Navigator.of(context).pop(),
-              ),
+              _HistoryHeader(onBack: () => Navigator.of(context).pop()),
               const SizedBox(height: 24),
               _FilterRow(
                 selected: _selected,
@@ -36,77 +40,169 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 },
               ),
               const SizedBox(height: 28),
-
-              // Today
-              const _HistorySection(
-                label: 'Today',
-                runs: [
-                  _RunCardData(
-                    status: _RunStatus.success,
-                    statusText: 'Successful',
-                    time: '2:34 PM',
-                    reposText: '5 Repositories',
-                    commitsText: '12 commits',
+              Expanded(
+                child: historyAsync.when(
+                  data: (entries) => _buildHistoryList(context, entries),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (err, _) => Center(
+                    child: Text(
+                      'Failed to load history\n$err',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF9E9EAA),
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
-                  _RunCardData(
-                    status: _RunStatus.success,
-                    statusText: 'Successful',
-                    time: '10:22 AM',
-                    reposText: '4 Repositories',
-                    commitsText: '8 commits',
-                  ),
-                ],
+                ),
               ),
-              const SizedBox(height: 26),
-
-              // Yesterday
-              const _HistorySection(
-                label: 'Yesterday',
-                runs: [
-                  _RunCardData(
-                    status: _RunStatus.partial,
-                    statusText: 'Partial',
-                    time: '4:15 PM',
-                    reposText: '5 Repositories',
-                    commitsText: '7 commits',
-                  ),
-                  _RunCardData(
-                    status: _RunStatus.success,
-                    statusText: 'Successful',
-                    time: '10:22 AM',
-                    reposText: '4 Repositories',
-                    commitsText: '8 commits',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 26),
-
-              // Nov 1
-              const _HistorySection(
-                label: 'Nov 1',
-                runs: [
-                  _RunCardData(
-                    status: _RunStatus.success,
-                    statusText: 'Successful',
-                    time: '10:22 AM',
-                    reposText: '4 Repositories',
-                    commitsText: '8 commits',
-                  ),
-                  _RunCardData(
-                    status: _RunStatus.failed,
-                    statusText: 'Failed',
-                    time: '4:15 PM',
-                    reposText: '5 Repositories',
-                    commitsText: '7 commits',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildHistoryList(
+    BuildContext context,
+    List<RunHistoryEntry> entries,
+  ) {
+    if (entries.isEmpty) {
+      return const Center(
+        child: Text(
+          'No runs yet.\nRun GitPulse to see your history here.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Color(0xFF9E9EAA), fontSize: 13),
+        ),
+      );
+    }
+
+    // Apply filter.
+    final filtered = entries.where((entry) {
+      final status = _mapStatus(entry);
+      switch (_selected) {
+        case _HistoryFilter.all:
+          return true;
+        case _HistoryFilter.success:
+          return status == _RunStatus.success;
+        case _HistoryFilter.failed:
+          return status == _RunStatus.failed || status == _RunStatus.partial;
+      }
+    }).toList();
+
+    if (filtered.isEmpty) {
+      return const Center(
+        child: Text(
+          'No runs match this filter.',
+          style: TextStyle(color: Color(0xFF9E9EAA), fontSize: 13),
+        ),
+      );
+    }
+
+    final grouped = _groupByDay(filtered);
+
+    return ListView.separated(
+      physics: const BouncingScrollPhysics(),
+      itemCount: grouped.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 26),
+      itemBuilder: (context, index) {
+        final entry = grouped.entries.elementAt(index);
+        final label = entry.key;
+        final runs = entry.value.map(_entryToRunCardData).toList();
+
+        return _HistorySection(label: label, runs: runs);
+      },
+    );
+  }
+
+  Map<String, List<RunHistoryEntry>> _groupByDay(
+    List<RunHistoryEntry> entries,
+  ) {
+    final map = <String, List<RunHistoryEntry>>{};
+    for (final entry in entries) {
+      final local = entry.timestamp.toLocal();
+      final label = _groupLabelForDate(local);
+
+      map.putIfAbsent(label, () => []).add(entry);
+    }
+
+    return map;
+  }
+
+  String _groupLabelForDate(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final thatDay = DateTime(dt.year, dt.month, dt.day);
+    final diff = today.difference(thatDay).inDays;
+
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final monthName = months[dt.month - 1];
+    return '$monthName ${dt.day}';
+  }
+
+  _RunStatus _mapStatus(RunHistoryEntry entry) {
+    if (entry.success && entry.markersAdded > 0) {
+      return _RunStatus.success;
+    }
+    if (entry.isPartial) {
+      return _RunStatus.partial;
+    }
+    return _RunStatus.failed;
+  }
+
+  _RunCardData _entryToRunCardData(RunHistoryEntry entry) {
+    final status = _mapStatus(entry);
+    final statusText = () {
+      switch (status) {
+        case _RunStatus.success:
+          return 'Successful';
+        case _RunStatus.partial:
+          return 'Partial';
+        case _RunStatus.failed:
+          return 'Failed';
+      }
+    }();
+
+    final local = entry.timestamp.toLocal();
+    final timeText = _formatTime(local);
+
+    final repoText = entry.fullName.isNotEmpty
+        ? entry.fullName
+        : '${entry.owner}/${entry.repoName}';
+    final commitsText = '${entry.markersAdded} commits';
+
+    return _RunCardData(
+      status: status,
+      statusText: statusText,
+      time: timeText,
+      reposText: repoText,
+      commitsText: commitsText,
+    );
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour;
+    final minute = dt.minute;
+    final suffix = hour >= 12 ? 'PM' : 'AM';
+    final h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    final mm = minute.toString().padLeft(2, '0');
+    return '$h12:$mm $suffix';
   }
 }
 
@@ -116,6 +212,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
 class _HistoryHeader extends StatelessWidget {
   final VoidCallback onBack;
+
   const _HistoryHeader({required this.onBack});
 
   @override
@@ -154,10 +251,7 @@ class _HistoryHeader extends StatelessWidget {
             SizedBox(height: 2),
             Text(
               'Past runs and activity',
-              style: TextStyle(
-                color: Color(0xFF9E9EAA),
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Color(0xFF9E9EAA), fontSize: 13),
             ),
           ],
         ),
@@ -174,10 +268,7 @@ class _FilterRow extends StatelessWidget {
   final _HistoryFilter selected;
   final ValueChanged<_HistoryFilter> onChanged;
 
-  const _FilterRow({
-    required this.selected,
-    required this.onChanged,
-  });
+  const _FilterRow({required this.selected, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -220,18 +311,15 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final decoration = isSelected
         ? BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [
-          Color(0xFF6A5CFF),
-          Color(0xFFB06BFF),
-        ],
-      ),
-      borderRadius: BorderRadius.circular(20),
-    )
+            gradient: const LinearGradient(
+              colors: [Color(0xFF6A5CFF), Color(0xFFB06BFF)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+          )
         : BoxDecoration(
-      color: const Color(0xFF2A2A33),
-      borderRadius: BorderRadius.circular(20),
-    );
+            color: const Color(0xFF2A2A33),
+            borderRadius: BorderRadius.circular(20),
+          );
 
     return GestureDetector(
       onTap: onTap,
@@ -252,20 +340,19 @@ class _FilterChip extends StatelessWidget {
 }
 
 //
-// ===================== SECTIONS (Today / Yesterday / Nov 1) =====================
+// ===================== SECTIONS =====================
 //
 
 class _HistorySection extends StatelessWidget {
   final String label;
   final List<_RunCardData> runs;
 
-  const _HistorySection({
-    required this.label,
-    required this.runs,
-  });
+  const _HistorySection({required this.label, required this.runs});
 
   @override
   Widget build(BuildContext context) {
+    if (runs.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -356,11 +443,7 @@ class _RunCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             padding: const EdgeInsets.all(6),
-            child: SvgPicture.asset(
-              iconAsset,
-              width: 16,
-              height: 16,
-            ),
+            child: SvgPicture.asset(iconAsset, width: 16, height: 16),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -380,10 +463,7 @@ class _RunCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     const Text(
                       '•',
-                      style: TextStyle(
-                        color: Color(0xFF9E9EAA),
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Color(0xFF9E9EAA), fontSize: 12),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -406,11 +486,7 @@ class _RunCard extends StatelessWidget {
               ],
             ),
           ),
-          SvgPicture.asset(
-            'assets/arrow_right.svg',
-            width: 16,
-            height: 16,
-          ),
+          SvgPicture.asset('assets/arrow_right.svg', width: 16, height: 16),
         ],
       ),
     );

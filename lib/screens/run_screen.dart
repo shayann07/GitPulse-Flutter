@@ -1,13 +1,170 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../providers/app_providers.dart';
+import '../services/run_service.dart';
 import 'history_screen.dart';
 
-class RunScreen extends StatelessWidget {
+class RunScreen extends ConsumerStatefulWidget {
   const RunScreen({super.key});
 
   @override
+  ConsumerState<RunScreen> createState() => _RunScreenState();
+}
+
+class _RunScreenState extends ConsumerState<RunScreen> {
+  bool _isRunning = false;
+  bool _hasCompleted = false;
+  double _progress = 0.0; // 0.0 - 1.0
+  String _statusLabel = 'Preparing run...';
+
+  String? _repoName;
+  int _markersRequested = 0;
+  int _markersAdded = 0;
+  String? _errorMessage;
+
+  Timer? _fakeProgressTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Kick off the run when we land on this screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startRun();
+    });
+  }
+
+  @override
+  void dispose() {
+    _fakeProgressTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startFakeProgress() {
+    _fakeProgressTimer?.cancel();
+    _fakeProgressTimer = Timer.periodic(const Duration(milliseconds: 150), (
+      timer,
+    ) {
+      if (!_isRunning) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() {
+        const maxWhileRunning = 0.85;
+        if (_progress < maxWhileRunning) {
+          _progress = (_progress + 0.02).clamp(0.0, maxWhileRunning);
+        } else {
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  Future<void> _startRun() async {
+    if (_isRunning) return;
+
+    setState(() {
+      _isRunning = true;
+      _hasCompleted = false;
+      _progress = 0.0;
+      _statusLabel = 'Running';
+      _errorMessage = null;
+      _repoName = null;
+      _markersAdded = 0;
+      _markersRequested = 0;
+    });
+
+    _startFakeProgress();
+
+    try {
+      final session = await ref.read(sessionProvider.future);
+      if (session == null) {
+        throw Exception('Not logged in with GitHub');
+      }
+
+      final settings = await ref.read(userSettingsProvider.future);
+      final repos = await ref.read(reposProvider.future);
+
+      _markersRequested = settings.commitsPerRun;
+
+      final result = await RunService.instance.runNow(
+        session: session,
+        settings: settings,
+        allRepos: repos,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isRunning = false;
+        _hasCompleted = true;
+        _progress = 1.0;
+
+        _repoName = result.repo.fullName;
+        _markersAdded = result.markersAdded;
+        _errorMessage = result.errorMessage;
+
+        if (result.success) {
+          _statusLabel = 'Completed';
+        } else if (result.markersAdded > 0) {
+          _statusLabel = 'Completed with issues';
+        } else {
+          _statusLabel = 'Failed';
+        }
+      });
+
+      // Refresh stats & history on Home after a run.
+      ref.invalidate(todayStatsProvider);
+      ref.invalidate(runHistoryProvider);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isRunning = false;
+        _hasCompleted = true;
+        _progress = 1.0;
+        _statusLabel = 'Failed';
+        _errorMessage = e.toString();
+      });
+    } finally {
+      _fakeProgressTimer?.cancel();
+    }
+  }
+
+  void _handleBack(BuildContext context) {
+    if (_isRunning) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Run in progress, please wait for it to finish.'),
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
+  void _handlePause() {
+    // Not implementing real pause in MVP – just surface a message.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Pause is not supported in this version.')),
+    );
+  }
+
+  void _handleCancel() {
+    // Same story as pause – we commit sequentially and can’t safely cancel mid-flight yet.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Cancel is not supported in this version.')),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final percent = _progress.clamp(0.0, 1.0);
+    final displayPercent = (percent * 100).round();
+
     return Scaffold(
       backgroundColor: _GPColors.background,
       body: SafeArea(
@@ -16,51 +173,85 @@ class RunScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              _TopControls(),
-              SizedBox(height: 26),
-              _ProgressCard(),
-              SizedBox(height: 26),
-              _SectionTitle('Repositories Progress'),
-              SizedBox(height: 16),
-
-              // SUCCESS
-              _RepoSuccessCard(
-                name: 'GitPluse-android',
-                subtitle: 'Committed 3 files',
+            children: [
+              _TopControls(
+                isRunning: _isRunning,
+                onBack: () => _handleBack(context),
+                onPause: _handlePause,
+                onCancel: _handleCancel,
               ),
-              SizedBox(height: 12),
-              _RepoSuccessCard(name: 'Dot Files', subtitle: 'Committed 2 file'),
-
-              SizedBox(height: 16),
-
-              // IN PROGRESS
-              _RepoInProgressCard(
-                name: 'Website',
-                subtitle: 'Committing changes ………. ',
-                percent: 65,
+              const SizedBox(height: 26),
+              _ProgressCard(
+                percent: percent,
+                displayPercent: displayPercent,
+                statusLabel: _statusLabel,
               ),
-              SizedBox(height: 16),
-              _RepoInProgressCard(
-                name: 'Analytics-Dashboard',
-                subtitle: 'Processing files ………. ',
-                percent: 35,
-              ),
-
-              SizedBox(height: 16),
-
-              // PENDING
-              _RepoPendingCard(name: 'Mobile - Lib'),
-              SizedBox(height: 12),
-              _RepoPendingCard(name: 'Api-server'),
-
-              SizedBox(height: 32),
-              _ViewHistoryButton(),
-              SizedBox(height: 40),
+              const SizedBox(height: 26),
+              const _SectionTitle('Repositories Progress'),
+              const SizedBox(height: 16),
+              _buildRepoProgressSection(),
+              const SizedBox(height: 32),
+              const _ViewHistoryButton(),
+              const SizedBox(height: 40),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRepoProgressSection() {
+    if (_isRunning) {
+      return _RepoInProgressCard(
+        name: 'Running on selected repo…',
+        subtitle: 'Applying automated commits...',
+        percent: (_progress * 100).round().clamp(0, 100),
+      );
+    }
+
+    if (!_hasCompleted || _repoName == null) {
+      return const _RepoPendingCard(name: 'Waiting for run to start');
+    }
+
+    // Completed state
+    if (_errorMessage == null && _markersAdded > 0) {
+      final subtitle = _markersAdded == _markersRequested
+          ? 'Committed $_markersAdded markers'
+          : 'Committed $_markersAdded of $_markersRequested markers';
+      return _RepoSuccessCard(name: _repoName!, subtitle: subtitle);
+    }
+
+    if (_markersAdded > 0) {
+      final subtitle =
+          'Committed $_markersAdded of $_markersRequested markers (partial)';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _RepoSuccessCard(name: _repoName!, subtitle: subtitle),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: Color(0xFFFF7A7A), fontSize: 12),
+            ),
+          ],
+        ],
+      );
+    }
+
+    // Failed completely
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _RepoPendingCard(name: _repoName ?? 'Selected repository'),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _errorMessage!,
+            style: const TextStyle(color: Color(0xFFFF7A7A), fontSize: 12),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -70,22 +261,35 @@ class RunScreen extends StatelessWidget {
 //
 
 class _TopControls extends StatelessWidget {
-  const _TopControls();
+  final bool isRunning;
+  final VoidCallback onBack;
+  final VoidCallback onPause;
+  final VoidCallback onCancel;
+
+  const _TopControls({
+    required this.isRunning,
+    required this.onBack,
+    required this.onPause,
+    required this.onCancel,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: const [
-        // back on the left
-        _ControlButton(icon: 'assets/arrow_left.svg'),
-
-        // pause + close on the right
+      children: [
+        _ControlButton(icon: 'assets/arrow_left.svg', onTap: onBack),
         Row(
           children: [
-            _ControlButton(icon: 'assets/pause_icon.svg'),
-            SizedBox(width: 10),
-            _ControlButton(icon: 'assets/cross_icon.svg'),
+            _ControlButton(
+              icon: 'assets/pause_icon.svg',
+              onTap: isRunning ? onPause : null,
+            ),
+            const SizedBox(width: 10),
+            _ControlButton(
+              icon: 'assets/cross_icon.svg',
+              onTap: isRunning ? onCancel : onBack,
+            ),
           ],
         ),
       ],
@@ -95,24 +299,28 @@ class _TopControls extends StatelessWidget {
 
 class _ControlButton extends StatelessWidget {
   final String icon;
+  final VoidCallback? onTap;
 
-  const _ControlButton({required this.icon});
+  const _ControlButton({required this.icon, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 38,
-      // smaller, closer to PNG
-      height: 38,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1E),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      alignment: Alignment.center,
-      child: SvgPicture.asset(
-        icon,
-        width: 16, // smaller icon
-        height: 16,
+    final enabled = onTap != null;
+
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.4,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1E),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          alignment: Alignment.center,
+          child: SvgPicture.asset(icon, width: 16, height: 16),
+        ),
       ),
     );
   }
@@ -123,7 +331,15 @@ class _ControlButton extends StatelessWidget {
 //
 
 class _ProgressCard extends StatelessWidget {
-  const _ProgressCard();
+  final double percent;
+  final int displayPercent;
+  final String statusLabel;
+
+  const _ProgressCard({
+    required this.percent,
+    required this.displayPercent,
+    required this.statusLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -136,22 +352,22 @@ class _ProgressCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           Text(
-            '60%',
-            style: TextStyle(
+            '$displayPercent%',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 36,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
-            'Running',
-            style: TextStyle(color: Color(0xFFC4C4CE), fontSize: 15),
+            statusLabel,
+            style: const TextStyle(color: Color(0xFFC4C4CE), fontSize: 15),
           ),
-          SizedBox(height: 22),
-          _MainGradientProgressBar(percent: 0.60),
+          const SizedBox(height: 22),
+          _MainGradientProgressBar(percent: percent),
         ],
       ),
     );
@@ -165,6 +381,8 @@ class _MainGradientProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final clamped = percent.clamp(0.0, 1.0);
+
     return Container(
       height: 8,
       decoration: BoxDecoration(
@@ -173,7 +391,7 @@ class _MainGradientProgressBar extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final width = constraints.maxWidth * percent;
+          final width = constraints.maxWidth * clamped;
 
           return Container(
             width: width,
@@ -224,7 +442,6 @@ class _RepoSuccessCard extends StatelessWidget {
               height: 14,
             ),
           ),
-
           const SizedBox(width: 14),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,6 +484,8 @@ class _RepoInProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final clampedPercent = percent.clamp(0, 100);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
@@ -292,7 +511,6 @@ class _RepoInProgressCard extends StatelessWidget {
                   height: 15,
                 ),
               ),
-
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -318,13 +536,13 @@ class _RepoInProgressCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '$percent%',
+                '$clampedPercent%',
                 style: const TextStyle(color: Color(0xFFC2C3CC), fontSize: 13),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          _RepoProgressBar(percent: percent / 100),
+          _RepoProgressBar(percent: clampedPercent / 100),
         ],
       ),
     );
@@ -338,6 +556,8 @@ class _RepoProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final clamped = percent.clamp(0.0, 1.0);
+
     return Container(
       height: 4,
       decoration: BoxDecoration(
@@ -346,7 +566,7 @@ class _RepoProgressBar extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final width = constraints.maxWidth * percent;
+          final width = constraints.maxWidth * clamped;
 
           return Container(
             width: width,
@@ -400,7 +620,6 @@ class _RepoPendingCard extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(width: 14),
           Text(
             name,
